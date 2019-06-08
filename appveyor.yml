@@ -29,10 +29,11 @@ after_build:
 
 after_test:
   - ps: Invoke-Expression ($env:USERPROFILE + '\.nuget\packages\OpenCover\4.7.922\tools\OpenCover.Console.exe -register:user -filter:"+[*]* -[SevenZip.Tests]* -[nunit.framework]*" -target:"' + $env:USERPROFILE + '\.nuget\packages\nunit.consolerunner\3.10.0\tools\nunit3-console.exe" -targetargs:"/domain:single Stage/Release/net45/SevenZip.Tests.dll" -output:coverage.xml')
-  - ps: Invoke-Expression ($env:USERPROFILE + '\.nuget\packages\coveralls.io.\1.4.2\tools\coveralls.net.exe --opencover "coverage.xml" -r %COVERALLS_REPO_TOKEN%')
+  - ps: Invoke-Expression ($env:USERPROFILE + '\.nuget\packages\coveralls.io.\1.4.2\tools\coveralls.net.exe --debug --opencover "coverage.xml" -r %COVERALLS_REPO_TOKEN%')
 
 artifacts:
   - path: 'Squid-Box.SevenZip*.nupkg'
+  - path: 'coverage.xml'
 
 deploy:
   provider: NuGet
