@@ -18,28 +18,33 @@
             if (stream.Length > offset + SIGNATURE_SIZE)
             {
                 var signature = new byte[SIGNATURE_SIZE];
-                int bytesRequired = SIGNATURE_SIZE;
-                int index = 0;
+                var bytesRequired = SIGNATURE_SIZE;
+                var index = 0;
                 stream.Seek(offset, SeekOrigin.Begin);
+
                 while (bytesRequired > 0)
                 {
-                    int bytesRead = stream.Read(signature, index, bytesRequired);
+                    var bytesRead = stream.Read(signature, index, bytesRequired);
                     bytesRequired -= bytesRead;
                     index += bytesRead;
                 }
-                string actualSignature = BitConverter.ToString(signature);
-                foreach (string expectedSignature in Formats.InSignatureFormats.Keys)
+
+                var actualSignature = BitConverter.ToString(signature);
+
+                foreach (var expectedSignature in Formats.InSignatureFormats.Keys)
                 {
                     if (Formats.InSignatureFormats[expectedSignature] != expectedFormat)
                     {
                         continue;
                     }
+
                     if (actualSignature.StartsWith(expectedSignature, StringComparison.OrdinalIgnoreCase))
                     {
                         return true;
                     }
                 }
             }
+
             return false;
         }
 
@@ -53,10 +58,12 @@
         public static InArchiveFormat CheckSignature(Stream stream, out int offset, out bool isExecutable)
         {
             offset = 0;
+
             if (!stream.CanRead)
             {
                 throw new ArgumentException("The stream must be readable.");
             }
+
             if (stream.Length < SIGNATURE_SIZE)
             {
                 throw new ArgumentException("The stream is invalid.");
@@ -65,23 +72,25 @@
             #region Get file signature
 
             var signature = new byte[SIGNATURE_SIZE];
-            int bytesRequired = SIGNATURE_SIZE;
-            int index = 0;
+            var bytesRequired = SIGNATURE_SIZE;
+            var index = 0;
             stream.Seek(0, SeekOrigin.Begin);
+
             while (bytesRequired > 0)
             {
-                int bytesRead = stream.Read(signature, index, bytesRequired);
+                var bytesRead = stream.Read(signature, index, bytesRequired);
                 bytesRequired -= bytesRead;
                 index += bytesRead;
             }
-            string actualSignature = BitConverter.ToString(signature);
+
+            var actualSignature = BitConverter.ToString(signature);
 
             #endregion
 
-            InArchiveFormat suspectedFormat = InArchiveFormat.XZ; // any except PE and Cab
+            var suspectedFormat = InArchiveFormat.XZ; // any except PE and Cab
             isExecutable = false;
 
-            foreach (string expectedSignature in Formats.InSignatureFormats.Keys)
+            foreach (var expectedSignature in Formats.InSignatureFormats.Keys)
             {
                 if (actualSignature.StartsWith(expectedSignature, StringComparison.OrdinalIgnoreCase) ||
                     actualSignature.Substring(6).StartsWith(expectedSignature, StringComparison.OrdinalIgnoreCase) &&
@@ -106,92 +115,113 @@
             }
 
             #region SpecialDetect
+
             try
             {
                 SpecialDetect(stream, 257, InArchiveFormat.Tar);
             }
-            catch (ArgumentException) {}            
+            catch (ArgumentException) {}
+
             if (SpecialDetect(stream, 0x8001, InArchiveFormat.Iso))
             {
                 return InArchiveFormat.Iso;
             }
+
             if (SpecialDetect(stream, 0x8801, InArchiveFormat.Iso))
             {
                 return InArchiveFormat.Iso;
             }
+
             if (SpecialDetect(stream, 0x9001, InArchiveFormat.Iso))
             {
                 return InArchiveFormat.Iso;
             }
+
             if (SpecialDetect(stream, 0x9001, InArchiveFormat.Iso))
             {
                 return InArchiveFormat.Iso;
             }
+
             if (SpecialDetect(stream, 0x400, InArchiveFormat.Hfs))
             {
                 return InArchiveFormat.Hfs;
             }
+
             #region Last resort for tar - can mistake
+
             if (stream.Length >= 1024)
             {
                 stream.Seek(-1024, SeekOrigin.End);
-                byte[] buf = new byte[1024];
+                var buf = new byte[1024];
                 stream.Read(buf, 0, 1024);
-                bool istar = true;
-                for (int i = 0; i < 1024; i++)
+                var isTar = true;
+
+                for (var i = 0; i < 1024; i++)
                 {
-                    istar = istar && buf[i] == 0;
+                    isTar = isTar && buf[i] == 0;
                 }
-                if (istar)
+
+                if (isTar)
                 {
                     return InArchiveFormat.Tar;
                 }
             }
+
             #endregion
+
             #endregion
 
             #region Check if it is an SFX archive or a file with an embedded archive.
+
             if (suspectedFormat != InArchiveFormat.XZ)
             {
                 #region Get first Min(stream.Length, SFX_SCAN_LENGTH) bytes
+
                 var scanLength = Math.Min(stream.Length, SFX_SCAN_LENGTH);
                 signature = new byte[scanLength];
                 bytesRequired = (int)scanLength;
                 index = 0;
                 stream.Seek(0, SeekOrigin.Begin);
+
                 while (bytesRequired > 0)
                 {
-                    int bytesRead = stream.Read(signature, index, bytesRequired);
+                    var bytesRead = stream.Read(signature, index, bytesRequired);
                     bytesRequired -= bytesRead;
                     index += bytesRead;
                 }
+
                 actualSignature = BitConverter.ToString(signature);
+
                 #endregion
-                
+
                 foreach (var format in new[] 
                 {
                     InArchiveFormat.Zip, 
                     InArchiveFormat.SevenZip,
+                    InArchiveFormat.Rar4,
                     InArchiveFormat.Rar,
                     InArchiveFormat.Cab,
                     InArchiveFormat.Arj
                 })
                 {
-                    int pos = actualSignature.IndexOf(Formats.InSignatureFormatsReversed[format]);
+                    var pos = actualSignature.IndexOf(Formats.InSignatureFormatsReversed[format]);
+
                     if (pos > -1)
                     {
                         offset = pos / 3;
                         return format;
                     }
                 }
+
                 // Nothing
                 if (suspectedFormat == InArchiveFormat.PE)
                 {
                     return InArchiveFormat.PE;
                 }
             }
+
             #endregion
-            
+
             throw new ArgumentException("The stream is invalid or no corresponding signature was found.");
         }
 

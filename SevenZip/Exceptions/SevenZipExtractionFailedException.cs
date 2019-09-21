@@ -12,7 +12,7 @@ namespace SevenZip
     public class SevenZipExtractionFailedException : SevenZipException
     {
         /// <summary>
-        /// Exception dafault message which is displayed if no extra information is specified
+        /// Exception default message which is displayed if no extra information is specified
         /// </summary>
         public const string DEFAULT_MESSAGE = "The extraction has failed for an unknown reason with code ";
 

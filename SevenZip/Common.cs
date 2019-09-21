@@ -233,6 +233,12 @@ namespace SevenZip
                             case -2147024784:
                                 exception = new SevenZipException("There is not enough space on the disk. (0x80070070: DISK_FULL)");
                                 break;
+                            case -2147024864:
+                                exception = new SevenZipException("The file is being used by another process. (0x80070020: SHARING_VIOLATION)");
+                                break;
+                            case -2147024882:
+                                exception = new SevenZipException("There is not enough memory (RAM). (0x8007000E: OUT_OF_MEMORY)");
+                                break;
                             default:
                                 exception = new SevenZipException(
                                     $"Execution has failed due to an internal SevenZipSharp issue (0x{hresult:x}).\n" +

@@ -21,7 +21,7 @@
 
                 foreach (var file in Directory.GetFiles(Path.Combine(TestContext.CurrentContext.TestDirectory, "TestData")))
                 {
-                    if (file.Contains("multi"))
+                    if (file.Contains("multi") || file.Contains("long_path"))
                     {
                         continue;
                     }
@@ -169,6 +169,15 @@
 			Assert.AreEqual(3, Directory.GetFiles(destination1).Length);
 	        Assert.AreEqual(3, Directory.GetFiles(destination2).Length);
 		}
+
+        [Test]
+        public void ExtractArchiveWithLongPath()
+        {
+            using (var extractor = new SevenZipExtractor(@"TestData\long_path.7z"))
+            {
+                Assert.Throws<PathTooLongException>(() => extractor.ExtractArchive(OutputDirectory));
+            }
+        }
 
         [Test, TestCaseSource(nameof(TestFiles))]
         public void ExtractDifferentFormatsTest(TestFile file)
