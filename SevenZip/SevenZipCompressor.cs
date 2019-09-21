@@ -309,6 +309,7 @@ namespace SevenZip
                         {
                             names.Add(Marshal.StringToBSTR(pair.Key));
                             var pv = new PropVariant();
+                            if (pair.Key == "fb" || pair.Key == "pass" || pair.Key == "d" || (pair.Key == "mt" && pair.Value != "on"))
 
                             if (pair.Key == "fb" || pair.Key == "pass" || pair.Key == "d")
                             {
