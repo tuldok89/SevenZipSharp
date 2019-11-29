@@ -292,18 +292,19 @@ namespace SevenZip
                         }
 
                         #endregion
-
-                        fileName = Path.Combine(_directory, _directoryStructure? entryName : Path.GetFileName(entryName));
-                        _archive.GetProperty(index, ItemPropId.IsDirectory, ref data);
+                        
                         try
                         {
-                            fileName = ValidateFileName(fileName);
+                            fileName = Path.Combine(RemoveIllegalCharacters(_directory, true), RemoveIllegalCharacters(_directoryStructure ? entryName : Path.GetFileName(entryName)));
+                            ValidateFileNameAndCreateDirectory(fileName);
                         }
                         catch (Exception e)
                         {
                             AddException(e);
                             goto FileExtractionStartedLabel;
                         }
+
+                        _archive.GetProperty(index, ItemPropId.IsDirectory, ref data);
                         if (!NativeMethods.SafeCast(data, false))
                         {
                             #region Branch
@@ -445,6 +446,27 @@ namespace SevenZip
                     case OperationResult.UnsupportedMethod:
                         AddException(new ExtractionFailedException("Unsupported method error has occured."));
                         break;
+                    case OperationResult.Unavailable:
+                        AddException(new ExtractionFailedException("File is unavailable."));
+                        break;
+                    case OperationResult.UnexpectedEnd:
+                        AddException(new ExtractionFailedException("Unexpected end of file."));
+                        break;
+                    case OperationResult.DataAfterEnd: 
+                        AddException(new ExtractionFailedException("Data after end of archive."));
+                        break;
+                    case OperationResult.IsNotArc:
+                        AddException(new ExtractionFailedException("File is not archive."));
+                        break;
+                    case OperationResult.HeadersError:
+                        AddException(new ExtractionFailedException("Archive headers error."));
+                        break;
+                    case OperationResult.WrongPassword:
+                        AddException(new ExtractionFailedException("Wrong password."));
+                        break;
+                    default:
+                        AddException(new ExtractionFailedException($"Unexpected operation result: {operationResult}"));
+                        break;
                 }
             }
             else
@@ -458,8 +480,6 @@ namespace SevenZip
                     }
                     catch (ObjectDisposedException) { }
                     _fileStream = null;
-                    GC.Collect();
-                    GC.WaitForPendingFinalizers();
                 }
                 var iea = new FileInfoEventArgs(
                     _extractor.ArchiveFileData[_currentIndex], PercentDoneEventArgs.ProducePercentDone(_doneRate));                
@@ -521,7 +541,7 @@ namespace SevenZip
         /// </summary>
         /// <param name="fileName">File name</param>
         /// <returns>The valid file name</returns>
-        private static string ValidateFileName(string fileName)
+        private static void ValidateFileNameAndCreateDirectory(string fileName)
         {
             if (String.IsNullOrEmpty(fileName))
             {
@@ -530,11 +550,35 @@ namespace SevenZip
 
             var splittedFileName = new List<string>(fileName.Split(Path.DirectorySeparatorChar));
 
+            if (splittedFileName.Count > 2)
+            {
+                string tfn = splittedFileName[0];
+                for (int i = 1; i < splittedFileName.Count - 1; i++)
+                {
+                    tfn += Path.DirectorySeparatorChar + splittedFileName[i];
+                    if (!Directory.Exists(tfn))
+                    {
+                        Directory.CreateDirectory(tfn);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// removes the invalid character in file path.
+        /// </summary>
+        /// <param name="str"></param>
+        /// <param name="isDirectory"></param>
+        /// <returns></returns>
+        private static string RemoveIllegalCharacters(string str, bool isDirectory = false)
+        {
+            var splittedFileName = new List<string>(str.Split(Path.DirectorySeparatorChar));
+
             foreach (char chr in Path.GetInvalidFileNameChars())
             {
                 for (int i = 0; i < splittedFileName.Count; i++)
                 {
-                    if (chr == ':' && i == 0)
+                    if (isDirectory && chr == ':' && i == 0)
                     {
                         continue;
                     }
@@ -549,25 +593,12 @@ namespace SevenZip
                 }
             }
 
-            if (fileName.StartsWith(new string(Path.DirectorySeparatorChar, 2),
+            if (str.StartsWith(new string(Path.DirectorySeparatorChar, 2),
                                     StringComparison.CurrentCultureIgnoreCase))
             {
                 splittedFileName.RemoveAt(0);
                 splittedFileName.RemoveAt(0);
                 splittedFileName[0] = new string(Path.DirectorySeparatorChar, 2) + splittedFileName[0];
-            }
-
-            if (splittedFileName.Count > 2)
-            {
-                string tfn = splittedFileName[0];
-                for (int i = 1; i < splittedFileName.Count - 1; i++)
-                {
-                    tfn += Path.DirectorySeparatorChar + splittedFileName[i];
-                    if (!Directory.Exists(tfn))
-                    {
-                        Directory.CreateDirectory(tfn);
-                    }
-                }
             }
 
             return String.Join(new string(Path.DirectorySeparatorChar, 1), splittedFileName.ToArray());

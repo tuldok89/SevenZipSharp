@@ -10,7 +10,8 @@
 		<license type="expression">LGPL-3.0-only</license>
 		<projectUrl>https://github.com/squid-box/SevenZipSharp</projectUrl>
 		<tags>7z sevenzip sevenzipsharp 7-zip</tags>
-		<releaseNotes>Fixed issue when SevenZipSharp is embedded, thanks to GitHub user Mgamerz.</releaseNotes>
+		<releaseNotes>Improved support for non-solid extraction of 7z "Copy" file from solid archive using index, thanks to GitHub user Mgamerz.
+			Fixed issue related to invalid character in directory and file name, thanks to GitHub user Ramkaran Yadav.</releaseNotes>
     <dependencies>
       <group targetFramework="net45" />
       <group targetFramework="netstandard2.0">

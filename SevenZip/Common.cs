@@ -487,6 +487,11 @@ namespace SevenZip
         public string Comment { get; set; }
 
         /// <summary>
+        /// Compression method for the file.
+        /// </summary>
+        public string Method { get; set; }
+
+        /// <summary>
         /// Determines whether the specified System.Object is equal to the current ArchiveFileInfo.
         /// </summary>
         /// <param name="obj">The System.Object to compare with the current ArchiveFileInfo.</param>
