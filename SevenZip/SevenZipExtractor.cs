@@ -503,6 +503,8 @@ namespace SevenZip
                                     fileInfo.Crc = NativeMethods.SafeCast<uint>(data, 0);
                                     _archive.GetProperty(i, ItemPropId.Comment, ref data);
                                     fileInfo.Comment = NativeMethods.SafeCast(data, "");
+                                    _archive.GetProperty(i, ItemPropId.Method, ref data);
+                                    fileInfo.Method = NativeMethods.SafeCast(data, "");
                                     _archiveFileData.Add(fileInfo);
                                 }
                                 catch (InvalidCastException)
@@ -1020,11 +1022,7 @@ namespace SevenZip
                     return;
                 }
             }
-            var indexes = new[] {(uint) index};
-            if (_isSolid.Value)
-            {
-                indexes = SolidIndexes(indexes);
-            }
+            
             var archiveStream = GetArchiveStream(false);
             var openCallback = GetArchiveOpenCallback();
             if (!OpenArchive(archiveStream, openCallback))
@@ -1033,6 +1031,13 @@ namespace SevenZip
             }
             try
             {
+                var indexes = new[] { (uint)index };
+                var entry = _archiveFileData[index];
+
+                if (_isSolid.Value && !entry.Method.Equals("Copy", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    indexes = SolidIndexes(indexes);
+                }
                 using (var aec = GetArchiveExtractCallback(stream, (uint) index, indexes.Length))
                 {
                     try

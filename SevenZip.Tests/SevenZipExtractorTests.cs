@@ -53,7 +53,7 @@
             using (var extractor = new SevenZipExtractor(@"TestData\multiple_files.7z"))
             {
                 extractor.ExtractFiles(OutputDirectory, 0, 2);
-                Assert.AreEqual(2, Directory.GetFiles("output").Length);
+                Assert.AreEqual(2, Directory.GetFiles(OutputDirectory).Length);
             }
 
             Assert.AreEqual(2, Directory.GetFiles(OutputDirectory).Length);

@@ -1,4 +1,4 @@
-version: '1.2.{build}.0'
+version: '1.3.{build}.0'
 image: Visual Studio 2019
 
 configuration: Release
@@ -17,7 +17,7 @@ before_build:
 
 environment:
   COVERALLS_REPO_TOKEN:  
-    secure: uhHSJvf0G4qxIzWt2740yqjI1a5jGRM0bUFdf3nWGUYrHBc0rJXHn0wExDiWMz/O
+    secure: 9nrrklS2VRyutuqp/K8xVrv8bD+rRW5HgjWJ670wirR74AgvGOd5qnwTIFWHZBEx
 
 build:
   parallel: true
@@ -28,11 +28,15 @@ after_build:
   - cmd: nuget pack package.nuspec -version "%APPVEYOR_BUILD_VERSION%"
 
 after_test:
-  - ps: Invoke-Expression ($env:USERPROFILE + '\.nuget\packages\OpenCover\4.7.922\tools\OpenCover.Console.exe -register:Path32 -filter:"+[*]* -[SevenZip.Tests]* -[nunit.framework]*" -target:"' + $env:USERPROFILE + '\.nuget\packages\nunit.consolerunner\3.10.0\tools\nunit3-console.exe" -targetargs:"/domain:single Stage/Release/net45/SevenZip.Tests.dll" -output:coverage.xml')
+  - ps: Invoke-Expression ($env:USERPROFILE + '\.nuget\packages\OpenCover\4.7.922\tools\OpenCover.Console.exe -register:Path64 -filter:"+[*]* -[SevenZip.Tests]* -[nunit.framework]*" -target:"' + $env:USERPROFILE + '\.nuget\packages\nunit.consolerunner\3.10.0\tools\nunit3-console.exe" -targetargs:"/domain:single Stage/Release/net45/SevenZip.Tests.dll" -output:coverage.xml')
   - ps: Invoke-Expression ($env:USERPROFILE + '\.nuget\packages\coveralls.io.\1.4.2\tools\coveralls.net.exe --opencover "coverage.xml" -r %COVERALLS_REPO_TOKEN%')
 
 artifacts:
   - path: 'Squid-Box.SevenZip*.nupkg'
+    name: NuGet
+
+  - path: 'coverage.xml'
+    name: Code Coverage
 
 deploy:
   - provider: NuGet
@@ -40,14 +44,5 @@ deploy:
       secure: Prw8zFhOF/86T5reyuCU+NIfxXPUpFHOljuKnlxeA4MrHuVm1QeAMF3Tq7R99bmP
     artifact: /SevenZip.*\.nupkg/
     skip_symbols: false
-    on:
-      branch: master
-
-  - provider: NuGet
-    server: https://nuget.pkg.github.com/squid-box/index.json
-    artifact: /SevenZip.*\.nupkg/
-    skip_symbols: false
-    api_key:
-      secure: pVc5Zdxjq9F5IotFOaz7SFD9hUo6e8R74ZeGIpiGlgaE7QI8K+j5oOJUkjKkUa5W
     on:
       branch: master

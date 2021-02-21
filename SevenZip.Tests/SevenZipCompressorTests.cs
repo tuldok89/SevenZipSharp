@@ -38,7 +38,7 @@
                 ArchiveFormat = OutArchiveFormat.SevenZip,
                 DirectoryStructure = false
             };
-
+            
             compressor.CompressFiles(TemporaryFile, @"Testdata\7z_LZMA2.7z");
             Assert.IsTrue(File.Exists(TemporaryFile));
 
@@ -281,70 +281,6 @@
 
 			Assert.IsTrue(File.Exists(tempFile1));
 			Assert.IsTrue(File.Exists(tempFile2));
-		}
-
-	    [Test]
-	    public void CompressWithCustomParameters()
-	    {
-		    var compressor = new SevenZipCompressor
-		    {
-			    ArchiveFormat = OutArchiveFormat.Zip,
-			    CompressionMethod = CompressionMethod.Deflate,
-			    CompressionLevel = CompressionLevel.Ultra,
-				ZipEncryptionMethod = ZipEncryptionMethod.Aes256
-		    };
-
-		    //Number of fast bytes
-            compressor.CustomParameters.Add("fb", "256");
-            //Number of deflate passes
-            compressor.CustomParameters.Add("pass", "4");
-            //Multi-threading on
-            compressor.CustomParameters.Add("mt", "on");
-            
-            compressor.CompressDirectory("TestData", TemporaryFile, "test");
-
-			Assert.IsTrue(File.Exists(TemporaryFile));
-
-		    Assert.DoesNotThrow(() =>
-		    {
-			    using (var extractor = new SevenZipExtractor(TemporaryFile))
-			    {
-				    var test = extractor.FilesCount;
-			    }
-		    });
-
-			using (var extractor = new SevenZipExtractor(TemporaryFile, "test"))
-		    {
-				Assert.AreEqual(Directory.GetFiles("TestData").Length, extractor.FilesCount);
-		    }
-
-			File.Delete(TemporaryFile);
-
-		    var tmp = new SevenZipCompressor
-		    {
-			    CompressionMethod = CompressionMethod.Ppmd,
-			    CompressionLevel = CompressionLevel.Ultra,
-				ScanOnlyWritable = true,
-				EncryptHeaders = true
-		    };
-
-            tmp.CompressDirectory("TestData", TemporaryFile, "test2");
-
-		    Assert.IsTrue(File.Exists(TemporaryFile));
-
-			// Encrypted headers mean we can't even list archive contents.
-		    Assert.Throws<SevenZipArchiveException>(() =>
-		    {
-			    using (var extractor = new SevenZipExtractor(TemporaryFile))
-			    {
-				    var test = extractor.FilesCount;
-			    }
-		    });
-
-		    using (var extractor = new SevenZipExtractor(TemporaryFile, "test2"))
-		    {
-			    Assert.AreEqual(Directory.GetFiles("TestData").Length, extractor.FilesCount);
-		    }
 		}
 
         [Test, TestCaseSource(nameof(CompressionMethods))]

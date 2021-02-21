@@ -215,10 +215,6 @@ namespace SevenZip
 
             switch (_archiveFormat)
             {
-                case OutArchiveFormat.Zip:
-                {
-                    return method != CompressionMethod.Ppmd;
-                }
                 case OutArchiveFormat.GZip:
                 {
                     return method == CompressionMethod.Deflate;
@@ -262,10 +258,9 @@ namespace SevenZip
                 {
                     var setter =
                         CompressionMode == CompressionMode.Create && _updateData.FileNamesToModify == null
-                            ? (ISetProperties) SevenZipLibraryManager.OutArchive(
-                                _archiveFormat, this)
-                            : (ISetProperties) SevenZipLibraryManager.InArchive(
-                                Formats.InForOutFormats[_archiveFormat], this);
+                            ? (ISetProperties) SevenZipLibraryManager.OutArchive(_archiveFormat, this)
+                            : (ISetProperties) SevenZipLibraryManager.InArchive(Formats.InForOutFormats[_archiveFormat], this);
+                    
                     if (setter == null)
                     {
                         if (!ThrowException(null,
@@ -282,16 +277,39 @@ namespace SevenZip
                             "Unfortunately, the creation of multi-volume non-7Zip archives is not implemented.");
                     }
 
-                    if (CustomParameters.ContainsKey("x") || CustomParameters.ContainsKey("m"))
+                    #region Check for "forbidden" parameters
+
+                    if (CustomParameters.ContainsKey("x"))
                     {
-                        if (
-                            !ThrowException(null,
+                        if (!ThrowException(null,
                                 new CompressionFailedException(
-                                    "The specified compression parameters are invalid.")))
+                                    "Use the \"CompressionLevel\" property instead of the \"x\" parameter.")))
                         {
                             return;
                         }
                     }
+
+                    if (CustomParameters.ContainsKey("em"))
+                    {
+                        if (!ThrowException(null,
+                            new CompressionFailedException(
+                                "Use the \"ZipEncryptionMethod\" property instead of the \"em\" parameter.")))
+                        {
+                            return;
+                        }
+                    }
+
+                    if (CustomParameters.ContainsKey("m"))
+                    {
+                        if (!ThrowException(null,
+                            new CompressionFailedException(
+                                "Use the \"CompressionMethod\" property instead of the \"m\" parameter.")))
+                        {
+                            return;
+                        }
+                    }
+
+                    #endregion
 
                     var names = new List<IntPtr>(2 + CustomParameters.Count);
                     var values = new List<PropVariant>(2 + CustomParameters.Count);
@@ -300,11 +318,10 @@ namespace SevenZip
 
                     #region Initialize compression properties
 
-                    if (_compressionMethod == CompressionMethod.Default)
-                    {
-                        names.Add(Marshal.StringToBSTR("x"));
-                        values.Add(new PropVariant());
+                    names.Add(Marshal.StringToBSTR("x"));
+                    values.Add(new PropVariant());
 
+                    if (_compressionMethod != CompressionMethod.Default)
                         foreach (var pair in CustomParameters)
                         {
                             names.Add(Marshal.StringToBSTR(pair.Key));
@@ -327,11 +344,9 @@ namespace SevenZip
                     }
                     else
                     {
-                        names.Add(Marshal.StringToBSTR("x"));
                         names.Add(_archiveFormat == OutArchiveFormat.Zip
                             ? Marshal.StringToBSTR("m")
                             : Marshal.StringToBSTR("0"));
-                        values.Add(new PropVariant());
 
                         var pv = new PropVariant
                         {
@@ -340,25 +355,54 @@ namespace SevenZip
                         };
 
                         values.Add(pv);
+                    }
 
-                        foreach (var pair in CustomParameters)
+                    foreach (var pair in CustomParameters)
+                    {
+                        #region Validate parameters against compression method.
+
+                        if (_compressionMethod != CompressionMethod.Ppmd &&
+                            (pair.Key.Equals("mem") || pair.Key.Equals("o")))
                         {
-                            names.Add(Marshal.StringToBSTR(pair.Key));
-                            pv = new PropVariant();
-
-                            if (pair.Key == "fb" || pair.Key == "pass" || pair.Key == "d")
-                            {
-                                pv.VarType = VarEnum.VT_UI4;
-                                pv.UInt32Value = Convert.ToUInt32(pair.Value, CultureInfo.InvariantCulture);
-                            }
-                            else
-                            {
-                                pv.VarType = VarEnum.VT_BSTR;
-                                pv.Value = Marshal.StringToBSTR(pair.Value);
-                            }
-
-                            values.Add(pv);
+                            ThrowException(null, new CompressionFailedException(
+                                $"Parameter \"{pair.Key}\" is only valid with the PPMd compression method."));
                         }
+
+                        #endregion
+
+                        names.Add(Marshal.StringToBSTR(pair.Key));
+                        var pv = new PropVariant();
+
+                        #region List of parameters to cast as integers
+
+                        var integerParameters = new HashSet<string>
+                        {
+                            "fb",
+                            "pass",
+                            "o",
+                            "yx",
+                            "a",
+                            "mc",
+                            "lc",
+                            "lp",
+                            "pb",
+                            "cp"
+                        };
+
+                        #endregion
+
+                        if (integerParameters.Contains(pair.Key))
+                        {
+                            pv.VarType = VarEnum.VT_UI4;
+                            pv.UInt32Value = Convert.ToUInt32(pair.Value, CultureInfo.InvariantCulture);
+                        }
+                        else
+                        {
+                            pv.VarType = VarEnum.VT_BSTR;
+                            pv.Value = Marshal.StringToBSTR(pair.Value);
+                        }
+
+                        values.Add(pv);
                     }
 
                     #endregion
