@@ -6,7 +6,9 @@ namespace SevenZip
     using System.IO;
     using System.Linq;
     using System.Runtime.InteropServices;
+#if NET45 || NETSTANDARD2_0
     using System.Security.Permissions;
+#endif
 
     using SevenZip.Sdk;
     using SevenZip.Sdk.Compression.Lzma;
@@ -25,7 +27,7 @@ namespace SevenZip
     {
 #if UNMANAGED
 
-        #region Fields
+#region Fields
 
         private bool _compressingFilesOnDisk;
 
@@ -42,7 +44,7 @@ namespace SevenZip
         /// </summary>
         public Dictionary<string, string> CustomParameters { get; private set; }
 
-        private int _volumeSize;
+        private long _volumeSize;
         private string _archiveName;
 
         /// <summary>
@@ -101,7 +103,7 @@ namespace SevenZip
         /// </summary>
         public bool FastCompression { get; set; }
 
-        #endregion
+#endregion
 
 #endif
         private static volatile int _lzmaDictionarySize = 1 << 22;
@@ -175,7 +177,7 @@ namespace SevenZip
 
 #if UNMANAGED
 
-        #region Private functions
+#region Private functions
 
         private IOutArchive MakeOutArchive(IInStream inArchiveStream)
         {
@@ -187,9 +189,7 @@ namespace SevenZip
 
                 if (inArchive.Open(inArchiveStream, ref checkPos, openCallback) != (int) OperationResult.Ok)
                 {
-                    if (
-                        !ThrowException(null,
-                            new SevenZipArchiveException("Can not update the archive: Open() failed.")))
+                    if (!ThrowException(null, new SevenZipArchiveException("Can not update the archive: Open() failed.")))
                     {
                         return null;
                     }
@@ -213,6 +213,8 @@ namespace SevenZip
                 return true;
             }
 
+            // TODO: Decide what to do with a returned "false" from this method!
+
             switch (_archiveFormat)
             {
                 case OutArchiveFormat.GZip:
@@ -230,6 +232,10 @@ namespace SevenZip
                 case OutArchiveFormat.Tar:
                 {
                     return method == CompressionMethod.Copy;
+                }
+                case OutArchiveFormat.Zip:
+                {
+                    return method != CompressionMethod.Lzma2;
                 }
                 default:
                 {
@@ -257,15 +263,13 @@ namespace SevenZip
                 default:
                 {
                     var setter =
-                        CompressionMode == CompressionMode.Create && _updateData.FileNamesToModify == null
-                            ? (ISetProperties) SevenZipLibraryManager.OutArchive(_archiveFormat, this)
-                            : (ISetProperties) SevenZipLibraryManager.InArchive(Formats.InForOutFormats[_archiveFormat], this);
+                        CompressionMode == CompressionMode.Create && _updateData.FileNamesToModify == null ? 
+                            (ISetProperties) SevenZipLibraryManager.OutArchive(_archiveFormat, this) : 
+                            (ISetProperties) SevenZipLibraryManager.InArchive(Formats.InForOutFormats[_archiveFormat], this);
                     
                     if (setter == null)
                     {
-                        if (!ThrowException(null,
-                            new CompressionFailedException(
-                                "The specified archive format is unsupported.")))
+                        if (!ThrowException(null, new CompressionFailedException("The specified archive format is unsupported.")))
                         {
                             return;
                         }
@@ -273,17 +277,14 @@ namespace SevenZip
 
                     if (_volumeSize > 0 && ArchiveFormat != OutArchiveFormat.SevenZip)
                     {
-                        throw new CompressionFailedException(
-                            "Unfortunately, the creation of multi-volume non-7Zip archives is not implemented.");
+                        throw new CompressionFailedException("Unfortunately, the creation of multi-volume non-7Zip archives is not implemented.");
                     }
 
-                    #region Check for "forbidden" parameters
+#region Check for "forbidden" parameters
 
                     if (CustomParameters.ContainsKey("x"))
                     {
-                        if (!ThrowException(null,
-                                new CompressionFailedException(
-                                    "Use the \"CompressionLevel\" property instead of the \"x\" parameter.")))
+                        if (!ThrowException(null, new CompressionFailedException("Use the \"CompressionLevel\" property instead of the \"x\" parameter.")))
                         {
                             return;
                         }
@@ -291,9 +292,7 @@ namespace SevenZip
 
                     if (CustomParameters.ContainsKey("em"))
                     {
-                        if (!ThrowException(null,
-                            new CompressionFailedException(
-                                "Use the \"ZipEncryptionMethod\" property instead of the \"em\" parameter.")))
+                        if (!ThrowException(null, new CompressionFailedException("Use the \"ZipEncryptionMethod\" property instead of the \"em\" parameter.")))
                         {
                             return;
                         }
@@ -301,24 +300,25 @@ namespace SevenZip
 
                     if (CustomParameters.ContainsKey("m"))
                     {
-                        if (!ThrowException(null,
-                            new CompressionFailedException(
-                                "Use the \"CompressionMethod\" property instead of the \"m\" parameter.")))
+                        if (!ThrowException(null, new CompressionFailedException("Use the \"CompressionMethod\" property instead of the \"m\" parameter.")))
                         {
                             return;
                         }
                     }
 
-                    #endregion
+#endregion
 
                     var names = new List<IntPtr>(2 + CustomParameters.Count);
                     var values = new List<PropVariant>(2 + CustomParameters.Count);
+
+#if NET45 || NETSTANDARD2_0
                     var sp = new SecurityPermission(SecurityPermissionFlag.UnmanagedCode);
                     sp.Demand();
+#endif
 
-                    #region Initialize compression properties
+#region Initialize compression properties
 
-                    names.Add(Marshal.StringToBSTR("x"));
+                        names.Add(Marshal.StringToBSTR("x"));
                     values.Add(new PropVariant());
 
                     if (_compressionMethod != CompressionMethod.Default)
@@ -360,11 +360,9 @@ namespace SevenZip
                     {
                         #region Validate parameters against compression method.
 
-                        if (_compressionMethod != CompressionMethod.Ppmd &&
-                            (pair.Key.Equals("mem") || pair.Key.Equals("o")))
+                        if (_compressionMethod != CompressionMethod.Ppmd && (pair.Key.Equals("mem") || pair.Key.Equals("o")))
                         {
-                            ThrowException(null, new CompressionFailedException(
-                                $"Parameter \"{pair.Key}\" is only valid with the PPMd compression method."));
+                            ThrowException(null, new CompressionFailedException($"Parameter \"{pair.Key}\" is only valid with the PPMd compression method."));
                         }
 
                         #endregion
@@ -372,25 +370,7 @@ namespace SevenZip
                         names.Add(Marshal.StringToBSTR(pair.Key));
                         var pv = new PropVariant();
 
-                        #region List of parameters to cast as integers
-
-                        var integerParameters = new HashSet<string>
-                        {
-                            "fb",
-                            "pass",
-                            "o",
-                            "yx",
-                            "a",
-                            "mc",
-                            "lc",
-                            "lp",
-                            "pb",
-                            "cp"
-                        };
-
-                        #endregion
-
-                        if (integerParameters.Contains(pair.Key))
+                        if (pair.Value.All(char.IsDigit))
                         {
                             pv.VarType = VarEnum.VT_UI4;
                             pv.UInt32Value = Convert.ToUInt32(pair.Value, CultureInfo.InvariantCulture);
@@ -404,9 +384,9 @@ namespace SevenZip
                         values.Add(pv);
                     }
 
-                    #endregion
+#endregion
 
-                    #region Set compression level
+#region Set compression level
 
                     var clpv = values[0];
                     clpv.VarType = VarEnum.VT_UI4;
@@ -447,21 +427,20 @@ namespace SevenZip
 
                     values[0] = clpv;
 
-                    #endregion
+#endregion
 
-                    #region Encrypt headers
+#region Encrypt headers
 
-                    if (EncryptHeaders && _archiveFormat == OutArchiveFormat.SevenZip &&
-                        !SwitchIsInCustomParameters("he"))
+                    if (EncryptHeaders && _archiveFormat == OutArchiveFormat.SevenZip && !SwitchIsInCustomParameters("he"))
                     {
                         names.Add(Marshal.StringToBSTR("he"));
                         var tmp = new PropVariant {VarType = VarEnum.VT_BSTR, Value = Marshal.StringToBSTR("on")};
                         values.Add(tmp);
                     }
 
-                    #endregion
+#endregion
 
-                    #region Zip Encryption
+#region Zip Encryption
 
                     if (_archiveFormat == OutArchiveFormat.Zip &&
                         ZipEncryptionMethod != ZipEncryptionMethod.ZipCrypto &&
@@ -478,7 +457,7 @@ namespace SevenZip
                         values.Add(tmp);
                     }
 
-                    #endregion
+#endregion
 
                     var namesHandle = GCHandle.Alloc(names.ToArray(), GCHandleType.Pinned);
                     var valuesHandle = GCHandle.Alloc(values.ToArray(), GCHandleType.Pinned);
@@ -506,6 +485,7 @@ namespace SevenZip
         private static int CommonRoot(ICollection<string> files)
         {
             var splitFileNames = new List<string[]>(files.Count);
+
             splitFileNames.AddRange(files.Select(fn => fn.Split(Path.DirectorySeparatorChar)));
             var minSplitLength = splitFileNames[0].Length - 1;
 
@@ -724,9 +704,9 @@ namespace SevenZip
             }
         }
 
-        #endregion
+#endregion
 
-        #region GetArchiveUpdateCallback overloads
+#region GetArchiveUpdateCallback overloads
 
         /// <summary>
         /// Performs the common ArchiveUpdateCallback initialization.
@@ -893,9 +873,9 @@ namespace SevenZip
             return auc;
         }
 
-        #endregion
+#endregion
 
-        #region Service "Get" functions
+#region Service "Get" functions
 
         private void FreeCompressionCallback(ArchiveUpdateCallback callback)
         {
@@ -994,11 +974,11 @@ namespace SevenZip
                 : new ArchiveOpenCallback(_archiveName, Password);
         }
 
-        #endregion
+#endregion
 
-        #region Core public Members
+#region Core public Members
 
-        #region Events
+#region Events
 
         /// <summary>
         /// Occurs when the next file is going to be packed.
@@ -1028,7 +1008,7 @@ namespace SevenZip
         /// </summary>
         public event EventHandler<EventArgs> CompressionFinished;
 
-        #region Event proxies
+#region Event proxies
 
         /// <summary>
         /// Event proxy for FileCompressionStarted.
@@ -1070,11 +1050,11 @@ namespace SevenZip
             OnEvent(FilesFound, e, false);
         }
 
-        #endregion
+#endregion
 
-        #endregion
+#endregion
 
-        #region Properties
+#region Properties
 
         /// <summary>
         /// Gets or sets the archive format
@@ -1107,16 +1087,16 @@ namespace SevenZip
         /// <summary>
         /// Gets or sets the size in bytes of an archive volume (0 for no volumes).
         /// </summary>
-        public int VolumeSize
+        public long VolumeSize
         {
             get => _volumeSize;
 
             set => _volumeSize = value > 0 ? value : 0;
         }
 
-        #endregion
+#endregion
 
-        #region CompressFiles overloads
+#region CompressFiles overloads
 
         /// <summary>
         /// Packs files into the archive.
@@ -1126,7 +1106,7 @@ namespace SevenZip
         public void CompressFiles(
             string archiveName, params string[] fileFullNames)
         {
-            CompressFilesEncrypted(archiveName, "", fileFullNames);
+            CompressFilesEncrypted(archiveName, string.Empty, fileFullNames);
         }
 
         /// <summary>
@@ -1138,7 +1118,7 @@ namespace SevenZip
         public void CompressFiles(
             Stream archiveStream, params string[] fileFullNames)
         {
-            CompressFilesEncrypted(archiveStream, "", fileFullNames);
+            CompressFilesEncrypted(archiveStream, string.Empty, fileFullNames);
         }
 
         /// <summary>
@@ -1150,7 +1130,7 @@ namespace SevenZip
         public void CompressFiles(
             string archiveName, int commonRootLength, params string[] fileFullNames)
         {
-            CompressFilesEncrypted(archiveName, commonRootLength, "", fileFullNames);
+            CompressFilesEncrypted(archiveName, commonRootLength, string.Empty, fileFullNames);
         }
 
         /// <summary>
@@ -1163,7 +1143,8 @@ namespace SevenZip
         public void CompressFiles(
             Stream archiveStream, int commonRootLength, params string[] fileFullNames)
         {
-            CompressFilesEncrypted(archiveStream, commonRootLength, "", fileFullNames);
+            fileFullNames = GetFullFilePaths(fileFullNames);
+            CompressFilesEncrypted(archiveStream, commonRootLength, string.Empty, fileFullNames);
         }
 
         /// <summary>
@@ -1175,6 +1156,7 @@ namespace SevenZip
         public void CompressFilesEncrypted(
             string archiveName, string password, params string[] fileFullNames)
         {
+            fileFullNames = GetFullFilePaths(fileFullNames);
             CompressFilesEncrypted(archiveName, CommonRoot(fileFullNames), password, fileFullNames);
         }
 
@@ -1188,6 +1170,7 @@ namespace SevenZip
         public void CompressFilesEncrypted(
             Stream archiveStream, string password, params string[] fileFullNames)
         {
+            fileFullNames = GetFullFilePaths(fileFullNames);
             CompressFilesEncrypted(archiveStream, CommonRoot(fileFullNames), password, fileFullNames);
         }
 
@@ -1328,9 +1311,9 @@ namespace SevenZip
             ThrowUserException();
         }
 
-        #endregion
+#endregion
 
-        #region CompressDirectory overloads
+#region CompressDirectory overloads
 
         /// <summary>
         /// Packs all files in the specified directory.
@@ -1376,6 +1359,9 @@ namespace SevenZip
                 throw new ArgumentException("Directory \"" + directory + "\" does not exist!");
             }
 
+            // Get full path, in case this is eg. an SFN path.
+            directory = Path.GetFullPath(directory);
+
             if (RecursiveDirectoryEmptyCheck(directory))
             {
                 throw new SevenZipInvalidFileNamesException("the specified directory is empty!");
@@ -1411,9 +1397,9 @@ namespace SevenZip
             CompressFilesEncrypted(archiveStream, commonRootLength, password, files.ToArray());
         }
 
-        #endregion
+#endregion
 
-        #region CompressFileDictionary overloads
+#region CompressFileDictionary overloads
 
         /// <summary>
         /// Packs the specified file dictionary.
@@ -1477,9 +1463,9 @@ namespace SevenZip
             CompressStreamDictionary(streamDict, archiveStream, password);
         }
 
-        #endregion
+#endregion
 
-        #region CompressStreamDictionary overloads
+#region CompressStreamDictionary overloads
 
         /// <summary>
         /// Packs the specified stream dictionary.
@@ -1538,8 +1524,8 @@ namespace SevenZip
                 pair => pair.Value != null && (!pair.Value.CanSeek || !pair.Value.CanRead)).Any(
                 pair => !ThrowException(null,
                     new ArgumentException(
-                        "The specified stream dictionary contains an invalid stream corresponding to the archive entry \""
-                        + pair.Key + "\".", "streamDictionary"))))
+                        $"The specified stream dictionary contains an invalid stream corresponding to the archive entry \"{pair.Key}\".", 
+                        nameof(streamDictionary)))))
             {
                 return;
             }
@@ -1607,9 +1593,9 @@ namespace SevenZip
             ThrowUserException();
         }
 
-        #endregion
+#endregion
 
-        #region CompressStream overloads
+#region CompressStream overloads
 
         /// <summary>
         /// Compresses the specified stream.
@@ -1662,9 +1648,9 @@ namespace SevenZip
             ThrowUserException();
         }
 
-        #endregion
+#endregion
 
-        #region ModifyArchive overloads
+#region ModifyArchive overloads
 
         /// <summary>
         /// Modifies the existing archive (renames files or deletes them).
@@ -1785,9 +1771,9 @@ namespace SevenZip
             ThrowUserException();
         }
 
-        #endregion
+#endregion
 
-        #endregion
+#endregion
 
 #endif
 
@@ -1802,7 +1788,7 @@ namespace SevenZip
 
         internal static void WriteLzmaProperties(Encoder encoder)
         {
-            #region LZMA properties definition
+#region LZMA properties definition
 
             CoderPropId[] propIDs =
             {
@@ -1827,7 +1813,7 @@ namespace SevenZip
                 false
             };
 
-            #endregion
+#endregion
 
             encoder.SetCoderProperties(propIDs, properties);
         }
@@ -1885,6 +1871,16 @@ namespace SevenZip
                     return outStream.ToArray();
                 }
             }
+        }
+
+        /// <summary>
+        /// Ensures an array of file names is the full path to that file.
+        /// </summary>
+        /// <param name="fileFullNames">Array of file names.</param>
+        /// <returns>Array of file names with full paths.</returns>
+        private static string[] GetFullFilePaths(IEnumerable<string> fileFullNames)
+        {
+            return fileFullNames.Select(Path.GetFullPath).ToArray();
         }
     }
 }

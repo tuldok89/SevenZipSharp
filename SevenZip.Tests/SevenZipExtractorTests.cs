@@ -93,6 +93,25 @@
         }
 
         [Test]
+        public void ExtractionWithSkipTest()
+        {
+            using (var tmp = new SevenZipExtractor(@"TestData\multiple_files.7z"))
+            {
+                tmp.FileExtractionStarted += (s, e) =>
+                                             {
+                                                 if (e.FileInfo.Index == 1)
+                                                 {
+                                                     e.Skip = true;
+                                                 }
+                                             };
+
+                tmp.ExtractArchive(OutputDirectory);
+
+                Assert.AreEqual(2, Directory.GetFiles(OutputDirectory).Length);
+            }
+        }
+
+        [Test]
         public void ExtractionFromStreamTest()
         {
             // TODO: Rewrite this to test against more/all TestData archives.
@@ -176,6 +195,34 @@
             using (var extractor = new SevenZipExtractor(@"TestData\long_path.7z"))
             {
                 Assert.Throws<PathTooLongException>(() => extractor.ExtractArchive(OutputDirectory));
+            }
+        }
+
+        [Test]
+        public void ReadArchivedFileNames()
+        {
+            using (var extractor = new SevenZipExtractor(@"TestData\multiple_files.7z"))
+            {
+                var fileNames = extractor.ArchiveFileNames;
+                Assert.AreEqual(3, fileNames.Count);
+
+                Assert.AreEqual("file1.txt", fileNames[0]);
+                Assert.AreEqual("file2.txt", fileNames[1]);
+                Assert.AreEqual("file3.txt", fileNames[2]);
+            }
+        }
+        
+        [Test]
+        public void ReadArchivedFileData()
+        {
+            using (var extractor = new SevenZipExtractor(@"TestData\multiple_files.7z"))
+            {
+                var fileData = extractor.ArchiveFileData;
+                Assert.AreEqual(3, fileData.Count);
+
+                Assert.AreEqual("file1.txt", fileData[0].FileName);
+                Assert.IsFalse(fileData[0].Encrypted);
+                Assert.IsFalse(fileData[0].IsDirectory);
             }
         }
 

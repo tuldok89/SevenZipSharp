@@ -5,10 +5,14 @@
     using System.Globalization;
     using System.IO;
     using System.Runtime.InteropServices;
+#if NET45 || NETSTANDARD2_0
     using System.Security.Permissions;
+#endif
     using FILETIME = System.Runtime.InteropServices.ComTypes.FILETIME;
 
 #if UNMANAGED
+
+    // ReSharper disable file ConvertToAutoProperty - For UWP compatibility.
 
     /// <summary>
     /// The structure to fix x64 and x32 variant size mismatch.
@@ -39,6 +43,12 @@
         [FieldOffset(8)]
         private readonly PropArray _propArray;
 
+        [FieldOffset(8)] private IntPtr _value;
+        [FieldOffset(8)] private uint _uInt32Value;
+        [FieldOffset(8)] private int _int32Value;
+        [FieldOffset(8)] private long _int64Value;
+        [FieldOffset(8)] private ulong _uInt64Value;
+
         /// <summary>
         /// Gets or sets variant type.
         /// </summary>
@@ -58,32 +68,51 @@
         /// <summary>
         /// Gets or sets the pointer value of the COM variant
         /// </summary>
-        [field: FieldOffset(8)]
-        public IntPtr Value { get; set; }
+        public IntPtr Value
+        {
+            get => _value;
+            set => _value = value;
+        }
 
         /// <summary>
         /// Gets or sets the UInt32 value of the COM variant.
         /// </summary>
-        [field: FieldOffset(8)]
-        public uint UInt32Value { get; set; }
+        
+        public uint UInt32Value
+        {
+            get => _uInt32Value;
+            set => _uInt32Value = value;
+        }
 
         /// <summary>
         /// Gets or sets the UInt32 value of the COM variant.
         /// </summary>
-        [field: FieldOffset(8)]
-        public int Int32Value { get; set; }
+        
+        public int Int32Value
+        {
+            get => _int32Value;
+            set => _int32Value = value;
+        }
 
         /// <summary>
         /// Gets or sets the Int64 value of the COM variant
         /// </summary>
-        [field: FieldOffset(8)]
-        public long Int64Value { get; set; }
+        
+        public long Int64Value
+        {
+            get => _int64Value;
+            set => _int64Value = value;
+        }
 
         /// <summary>
         /// Gets or sets the UInt64 value of the COM variant
         /// </summary>
-        [field: FieldOffset(8)]
-        public ulong UInt64Value { get; set; }
+        
+        public ulong UInt64Value
+        {
+            get => _uInt64Value;
+            set => _uInt64Value = value;
+        }
 
         /// <summary>
         /// Gets the object for this PropVariant.
@@ -93,11 +122,14 @@
         {
             get
             {
+#if NET45 || NETSTANDARD2_0
                 var sp = new SecurityPermission(SecurityPermissionFlag.UnmanagedCode);
                 sp.Demand();
-
+#endif
                 switch (VarType)
                 {
+                    case VarEnum.VT_BSTR:
+                        return Marshal.PtrToStringBSTR(Value);
                     case VarEnum.VT_EMPTY:
                         return null;
                     case VarEnum.VT_FILETIME:
@@ -110,7 +142,8 @@
                             return DateTime.MinValue;
                         }
                     default:
-                        GCHandle propHandle = GCHandle.Alloc(this, GCHandleType.Pinned);
+                        var propHandle = GCHandle.Alloc(this, GCHandleType.Pinned);
+                        
                         try
                         {
                             return Marshal.GetObjectForNativeVariant(propHandle.AddrOfPinnedObject());
@@ -146,7 +179,7 @@
         /// <returns>true if the specified System.Object is equal to the current PropVariant; otherwise, false.</returns>
         public override bool Equals(object obj)
         {
-            return (obj is PropVariant variant) && Equals(variant);
+            return obj is PropVariant variant && Equals(variant);
         }
 
         /// <summary>
@@ -160,10 +193,12 @@
             {
                 return false;
             }
+
             if (VarType != VarEnum.VT_BSTR)
             {
                 return afi.Int64Value == Int64Value;
             }
+
             return afi.Value == Value;
         }
 
@@ -241,11 +276,11 @@
         /// </summary>
         UnsupportedMethod,
         /// <summary>
-        /// Data error has occured
+        /// Data error has occurred
         /// </summary>
         DataError,
         /// <summary>
-        /// CrcError has occured
+        /// CrcError has occurred
         /// </summary>
         CrcError,
         /// <summary>
@@ -550,7 +585,7 @@
         /// PropId string names
         /// </summary>
         public static readonly Dictionary<ItemPropId, string> PropIdNames =
-        #region Initialization
+#region Initialization
             new Dictionary<ItemPropId, string>(46)
             {
                 {ItemPropId.Path, "Path"},
@@ -621,7 +656,7 @@
                 {ItemPropId.FreeSpace, "Free Space"},
                 {ItemPropId.ClusterSize, "Cluster Size"}
             };
-        #endregion
+#endregion
     }
 
     /// <summary>
@@ -774,7 +809,7 @@
         /// Gets the archive item property data.
         /// </summary>
         /// <param name="index">Item index</param>
-        /// <param name="propId">Property identificator</param>
+        /// <param name="propId">Property identifier</param>
         /// <param name="value">Property value</param>
         /// <returns>Zero if Ok</returns>
         [PreserveSig]
@@ -1105,4 +1140,4 @@
         int SetProperties(IntPtr names, IntPtr values, int numProperties);
     }
 #endif
-}
+            }
